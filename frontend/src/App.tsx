@@ -5,6 +5,7 @@ import { TradingViewChart, CrosshairData } from './components/TradingViewChart';
 import { OrderBookPanel } from './components/OrderBookPanel';
 import { AnalysisPanel } from './components/AnalysisPanel';
 import { BuyZoneAnalysis } from './components/BuyZoneAnalysis';
+import { NewsPanel } from './components/NewsPanel';
 import { OrderPanel } from './components/OrderPanel';
 import { MarketBar } from './components/MarketBar';
 import { BacktestPanel } from './components/BacktestPanel';
@@ -61,6 +62,7 @@ export default function App() {
 
       <div className="bottom-grid">
         <OrderBookPanel orderBook={orderBook} />
+        <NewsPanel />
         <BuyZoneAnalysis bars={bars} currentPrice={midPrice} />
         <OrderPanel midPrice={midPrice} onSubmit={handleSubmitOrder} />
         <BacktestPanel />

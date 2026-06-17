@@ -13,15 +13,22 @@ import * as http from 'http';
 import { MarketDataWSServer } from './ws-server';
 import { Tick } from './types';
 import { config } from './config';
+import { newsFetcher } from './news-fetcher';
 
 async function main() {
   const server = new MarketDataWSServer();
+  server.startNewsBroadcast();
 
   // ── HTTP Health + Info Server ──────────────────────────
-  const httpServer = http.createServer((req, res) => {
+  const httpServer = http.createServer(async (req, res) => {
     if (req.url === '/health') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ status: 'ok', ...server.getStats() }));
+    } else if (req.url === '/news') {
+      const news = await newsFetcher.getNews();
+      const sentiment = newsFetcher.getSentimentScore();
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+      res.end(JSON.stringify({ news, sentiment }));
     } else if (req.url === '/') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({

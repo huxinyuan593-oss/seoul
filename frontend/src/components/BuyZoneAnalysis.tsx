@@ -5,13 +5,15 @@
  * Total score ≥ 4 → STRONG BUY, 2-3 → BUY, 0-1 → WAIT, <0 → AVOID.
  */
 
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { OHLCVBar } from '../types';
 
 interface Props {
   bars: OHLCVBar[];
   currentPrice: number;
 }
+
+interface NewsSentiment { bullish: number; bearish: number; neutral: number; overall: number }
 
 interface BuySignal {
   indicator: string;
@@ -21,6 +23,21 @@ interface BuySignal {
 }
 
 export function BuyZoneAnalysis({ bars, currentPrice }: Props) {
+  const [newsSentiment, setNewsSentiment] = useState<NewsSentiment | null>(null);
+
+  useEffect(() => {
+    const fetchSentiment = async () => {
+      try {
+        const res = await fetch('http://localhost:8081/news');
+        const data = await res.json();
+        setNewsSentiment(data.sentiment);
+      } catch {}
+    };
+    fetchSentiment();
+    const interval = setInterval(fetchSentiment, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
   const analysis = useMemo(() => {
     if (bars.length < 26) return null;
 
@@ -107,7 +124,23 @@ export function BuyZoneAnalysis({ bars, currentPrice }: Props) {
       signals.push({ indicator: '支撑/阻力', score: 0, detail: '区间中部', action: 'NEUTRAL' });
     }
 
-    // ── 6. Volume Confirmation ──
+    // ── 6. News Sentiment ──
+    if (newsSentiment) {
+      const ns = newsSentiment.overall * 2; // Scale to -2..+2
+      if (ns > 0.8) {
+        signals.push({ indicator: '新闻情绪', score: 2, detail: `极度乐观 ${newsSentiment.bullish}%`, action: 'BUY' });
+      } else if (ns > 0.3) {
+        signals.push({ indicator: '新闻情绪', score: 1, detail: `偏向乐观 ${newsSentiment.bullish}%`, action: 'BUY' });
+      } else if (ns < -0.8) {
+        signals.push({ indicator: '新闻情绪', score: -2, detail: `极度悲观 ${newsSentiment.bearish}%`, action: 'SELL' });
+      } else if (ns < -0.3) {
+        signals.push({ indicator: '新闻情绪', score: -1, detail: `偏向悲观 ${newsSentiment.bearish}%`, action: 'SELL' });
+      } else {
+        signals.push({ indicator: '新闻情绪', score: 0, detail: `中性`, action: 'NEUTRAL' });
+      }
+    }
+
+    // ── 7. Volume Confirmation ──
     const avgVol = bars.slice(-20).reduce((a, b) => a + b.volume, 0) / 20;
     const lastVol = last.volume;
     const volRatio = lastVol / avgVol;
@@ -150,7 +183,7 @@ export function BuyZoneAnalysis({ bars, currentPrice }: Props) {
       support, resistance,
       rsi, macd, bbPosition,
     };
-  }, [bars, currentPrice]);
+  }, [bars, currentPrice, newsSentiment]);
 
   if (!analysis) return null;
 

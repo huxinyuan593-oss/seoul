@@ -17,6 +17,7 @@ import { TradingViewDataFeed } from './datafeed';
 import { RedisClient } from './redis-client';
 import { ClickHouseClient } from './clickhouse-client';
 import { OHLCVBar, Tick, WSMessage } from './types';
+import { newsFetcher } from './news-fetcher';
 
 interface ClientState {
   ws: WebSocket;
@@ -83,6 +84,20 @@ export class MarketDataWSServer {
         `Clients: ${this.clients.size}`
       );
     }
+  }
+
+  /** Start periodic news push (every 60s). */
+  startNewsBroadcast(): void {
+    const push = async () => {
+      const news = await newsFetcher.getNews();
+      const sentiment = newsFetcher.getSentimentScore();
+      const payload = JSON.stringify({ type: 'news', symbol: 'BTC/USDT', data: { news, sentiment } });
+      for (const [ws] of this.clients) {
+        try { ws.send(payload); } catch {}
+      }
+    };
+    push(); // Initial push
+    setInterval(push, 60000);
   }
 
   /** Get the TradingView DataFeed instance for HTTP API integration. */
