@@ -1,0 +1,30 @@
+version: "3.9"
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: audit
+      POSTGRES_PASSWORD: audit
+      POSTGRES_DB: audit_db
+    ports: ["5432:5432"]
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+
+  bitcoin-regtest:
+    image: ruimarinho/bitcoin-core:28
+    command:
+      -printtoconsole
+      -regtest=1
+      -rpcuser=admin
+      -rpcpassword=admin
+      -rpcallowip=0.0.0.0/0
+      -rpcbind=0.0.0.0
+      -txindex=1
+      -fallbackfee=0.00001
+    ports: ["18443:18443"]
+
+volumes:
+  pgdata:
