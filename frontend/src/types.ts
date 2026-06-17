@@ -34,7 +34,7 @@ export interface Trade {
 }
 
 export interface WSMessage {
-  type: 'ohlcv' | 'tick' | 'orderbook' | 'trade' | 'connected';
+  type: 'ohlcv' | 'tick' | 'orderbook' | 'trade' | 'connected' | 'news' | 'ping' | 'pong';
   symbol: string;
   data: any;
 }

@@ -16,10 +16,15 @@ export class RedisClient {
 
   constructor() {
     this.redis = new Redis(config.redisUrl, {
-      maxRetriesPerRequest: 3,
-      retryStrategy(times) {
-        return Math.min(times * 50, 2000);
+      maxRetriesPerRequest: 1,
+      retryStrategy() {
+        return null; // Don't retry — Redis is optional
       },
+      lazyConnect: true,
+      enableOfflineQueue: false,
+    });
+    this.redis.connect().catch(() => {
+      console.warn('[Redis] Not available — running without cache');
     });
   }
 
