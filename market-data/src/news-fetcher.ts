@@ -34,12 +34,16 @@ const BULLISH_TERMS = [
   'surge', 'rally', 'bull', 'breakout', 'pump', 'moon', 'soar',
   'adopt', 'approve', 'etf approved', 'institutional', 'accumulat',
   'record high', 'new high', 'upgrade', 'partnership',
+  '暴涨', '突破', '牛市', '新高', '增持', '流入', '利好', '批准',
+  '上涨', '看涨', '反弹', '飙升', '扩张', '增长', '创纪录',
 ];
 
 const BEARISH_TERMS = [
   'crash', 'dump', 'bear', 'ban', 'hack', 'exploit', 'scam',
   'regulat', 'crackdown', 'lawsuit', 'sec su', 'investigat',
   'decline', 'drop', 'fall', 'liquidat', 'sell-off',
+  '暴跌', '崩盘', '熊市', '禁止', '攻击', '损失', '调查',
+  '下跌', '看跌', '监管', '诉讼', '洗钱', '承压',
 ];
 
 function analyzeSentiment(title: string): { sentiment: 'positive' | 'negative' | 'neutral'; score: number } {
@@ -73,30 +77,30 @@ function estimateImpact(title: string): 'high' | 'medium' | 'low' {
 
 function generateDemoNews(): NewsItem[] {
   const headlines = [
-    { title: 'Bitcoin ETF Inflows Surge Past $500M in Single Day', sentiment: 'positive', impact: 'high' as const },
-    { title: 'SEC Postpones Decision on Spot Bitcoin ETF Options', sentiment: 'neutral', impact: 'high' as const },
-    { title: 'MicroStrategy Acquires Additional 12,000 BTC', sentiment: 'positive', impact: 'high' as const },
-    { title: 'Fed Chair Powell Signals Potential Rate Cut in September', sentiment: 'positive', impact: 'high' as const },
-    { title: 'Bitcoin Hashrate Reaches New All-Time High of 750 EH/s', sentiment: 'positive', impact: 'medium' as const },
-    { title: 'Binance Completes Proof-of-Reserves Audit — 105% Collateralized', sentiment: 'positive', impact: 'medium' as const },
-    { title: 'El Salvador BTC Holdings Cross $500M in Unrealized Profit', sentiment: 'positive', impact: 'medium' as const },
-    { title: 'Crypto Market Cap Surpasses $3 Trillion Milestone', sentiment: 'positive', impact: 'high' as const },
-    { title: 'BlackRock CEO: Bitcoin Is a Legitimate Asset Class', sentiment: 'positive', impact: 'high' as const },
-    { title: 'Major Exchange Reports $40M Hot Wallet Exploit', sentiment: 'negative', impact: 'high' as const },
-    { title: 'EU Publishes Final MiCA Technical Standards for Crypto', sentiment: 'neutral', impact: 'medium' as const },
-    { title: 'Bitcoin Lightning Network Capacity Exceeds 5,000 BTC', sentiment: 'positive', impact: 'medium' as const },
-    { title: 'JPMorgan: BTC Could Reach $150K on ETF Demand', sentiment: 'positive', impact: 'medium' as const },
-    { title: 'On-Chain Data Shows Long-Term Holders Accumulating', sentiment: 'positive', impact: 'medium' as const },
-    { title: 'Derivatives Data Suggests Potential Short Squeeze Above $90K', sentiment: 'positive', impact: 'medium' as const },
-    { title: 'DTCC Lists BlackRock Bitcoin ETF with 100% Collateral', sentiment: 'positive', impact: 'high' as const },
-    { title: 'Bitcoin Mining Difficulty Adjusts +5.2% — New High', sentiment: 'positive', impact: 'low' as const },
-    { title: 'Stablecoin Market Cap Grows $2B This Week — Liquidity Inflow', sentiment: 'positive', impact: 'medium' as const },
-    { title: 'U.S. Treasury Report Flags Crypto for Money Laundering Risks', sentiment: 'negative', impact: 'medium' as const },
-    { title: 'Bitcoin Dominance Climbs to 55% as Altcoins Bleed', sentiment: 'neutral', impact: 'low' as const },
-    { title: 'PayPal Expands Crypto Services to Business Accounts', sentiment: 'positive', impact: 'medium' as const },
-    { title: 'CME Bitcoin Futures Open Interest Breaks $12B Record', sentiment: 'positive', impact: 'high' as const },
-    { title: 'Grayscale Files for Covered Call Bitcoin ETF', sentiment: 'positive', impact: 'medium' as const },
-    { title: 'Bitcoin Developer Releases Critical Security Patch for Core', sentiment: 'neutral', impact: 'medium' as const },
+    { title: '比特币ETF单日净流入突破5亿美元 创历史新高', sentiment: 'positive', impact: 'high' as const },
+    { title: 'SEC推迟对现货比特币ETF期权的裁决', sentiment: 'neutral', impact: 'high' as const },
+    { title: 'MicroStrategy再次增持12,000枚比特币', sentiment: 'positive', impact: 'high' as const },
+    { title: '美联储主席鲍威尔暗示9月可能降息', sentiment: 'positive', impact: 'high' as const },
+    { title: '比特币全网算力突破750 EH/s 再创历史新高', sentiment: 'positive', impact: 'medium' as const },
+    { title: '币安完成准备金审计 超额抵押率达105%', sentiment: 'positive', impact: 'medium' as const },
+    { title: '萨尔瓦多比特币持仓浮盈突破5亿美元', sentiment: 'positive', impact: 'medium' as const },
+    { title: '加密货币总市值突破3万亿美元里程碑', sentiment: 'positive', impact: 'high' as const },
+    { title: '贝莱德CEO：比特币是合法的资产类别', sentiment: 'positive', impact: 'high' as const },
+    { title: '某大型交易所热钱包遭攻击 损失约4000万美元', sentiment: 'negative', impact: 'high' as const },
+    { title: '欧盟发布MiCA加密监管最终技术标准', sentiment: 'neutral', impact: 'medium' as const },
+    { title: '比特币闪电网络容量突破5,000 BTC', sentiment: 'positive', impact: 'medium' as const },
+    { title: '摩根大通：ETF需求或推动BTC涨至15万美元', sentiment: 'positive', impact: 'medium' as const },
+    { title: '链上数据显示长期持有者正在持续积累', sentiment: 'positive', impact: 'medium' as const },
+    { title: '衍生品数据暗示9万美元上方存在轧空可能', sentiment: 'positive', impact: 'medium' as const },
+    { title: 'DTCC将贝莱德比特币ETF列为100%抵押资产', sentiment: 'positive', impact: 'high' as const },
+    { title: '比特币挖矿难度上调5.2% 再创新高', sentiment: 'positive', impact: 'low' as const },
+    { title: '稳定币市值本周增长20亿美元 流动性持续流入', sentiment: 'positive', impact: 'medium' as const },
+    { title: '美国财政部报告将加密货币列为洗钱风险', sentiment: 'negative', impact: 'medium' as const },
+    { title: '比特币市占率升至55% 山寨币普遍承压', sentiment: 'neutral', impact: 'low' as const },
+    { title: 'PayPal将加密服务扩展至企业商户账户', sentiment: 'positive', impact: 'medium' as const },
+    { title: 'CME比特币期货未平仓量突破120亿美元纪录', sentiment: 'positive', impact: 'high' as const },
+    { title: '灰度申请推出备兑看涨比特币ETF', sentiment: 'positive', impact: 'medium' as const },
+    { title: '比特币核心开发者发布关键安全补丁', sentiment: 'neutral', impact: 'medium' as const },
   ];
 
   // Pick 8 random headlines

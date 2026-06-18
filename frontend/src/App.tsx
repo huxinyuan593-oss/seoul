@@ -2,7 +2,6 @@ import { useState, useCallback } from 'react';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useOHLCVData } from './hooks/useOHLCVData';
 import { TradingViewChart, CrosshairData } from './components/TradingViewChart';
-import { OrderBookPanel } from './components/OrderBookPanel';
 import { AnalysisPanel } from './components/AnalysisPanel';
 import { BuyZoneAnalysis } from './components/BuyZoneAnalysis';
 import { NewsPanel } from './components/NewsPanel';
@@ -13,15 +12,13 @@ import { TradeSignal } from './types';
 import './styles.css';
 
 export default function App() {
-  const { connected, lastTick, lastBar, orderBook, subscribe } = useWebSocket();
+  const { connected, lastTick, lastBar, subscribe } = useWebSocket();
   const bars = useOHLCVData(lastBar);
   const [crosshair, setCrosshair] = useState<CrosshairData | null>(null);
 
   if (connected) subscribe('BTC/USDT');
 
-  const midPrice = orderBook
-    ? (orderBook.bids[0]?.[0] + orderBook.asks[0]?.[0]) / 2
-    : lastTick?.price ?? bars[bars.length - 1]?.close ?? 87000;
+  const midPrice = lastTick?.price ?? bars[bars.length - 1]?.close ?? 87000;
 
   const handleCrosshair = useCallback((data: CrosshairData) => setCrosshair(data), []);
 
@@ -61,7 +58,6 @@ export default function App() {
       </div>
 
       <div className="bottom-grid">
-        <OrderBookPanel orderBook={orderBook} />
         <NewsPanel />
         <BuyZoneAnalysis bars={bars} currentPrice={midPrice} />
         <OrderPanel midPrice={midPrice} onSubmit={handleSubmitOrder} />

@@ -59,9 +59,9 @@ export function NewsPanel() {
         <div className="news-sentiment-bar">
           <div className="ns-gauge">
             <div className="ns-gauge-label">
-              <span>🐻 恐慌</span>
-              <span>市场情绪</span>
-              <span>🐂 贪婪</span>
+              <span>😱 恐慌</span>
+              <span>市场情绪指数</span>
+              <span>😤 贪婪</span>
             </div>
             <div className="ns-gauge-track">
               <div className="ns-gauge-fill" style={{ width: `${overallPct}%` }} />
@@ -70,9 +70,9 @@ export function NewsPanel() {
               </div>
             </div>
             <div className="ns-gauge-stats">
-              <span style={{color:'#3fb950'}}> bullish {Math.round(s.bullish * 100)}%</span>
-              <span style={{color:'#8b949e'}}> neutral {Math.round(s.neutral * 100)}%</span>
-              <span style={{color:'#f85149'}}> bearish {Math.round(s.bearish * 100)}%</span>
+              <span style={{color:'#3fb950'}}>🟢 利好 {Math.round(s.bullish * 100)}%</span>
+              <span style={{color:'#8b949e'}}>⚪ 中性 {Math.round(s.neutral * 100)}%</span>
+              <span style={{color:'#f85149'}}>🔴 利空 {Math.round(s.bearish * 100)}%</span>
             </div>
           </div>
         </div>
@@ -84,10 +84,10 @@ export function NewsPanel() {
           <div key={item.id} className={`ns-item impact-${item.impact}`}>
             <div className="ns-item-header">
               <span className={`ns-sentiment sentiment-${item.sentiment}`}>
-                {item.sentiment === 'positive' ? '🟢' : item.sentiment === 'negative' ? '🔴' : '⚪'}
+                {item.sentiment === 'positive' ? '📈' : item.sentiment === 'negative' ? '📉' : '➖'}
               </span>
               <span className="ns-source">{item.source}</span>
-              {item.impact === 'high' && <span className="ns-impact-high">⚡高影响力</span>}
+              {item.impact === 'high' && <span className="ns-impact-high">⚡重磅</span>}
               <span className="ns-time">{formatTime(item.publishedAt)}</span>
             </div>
             <div className="ns-title">{item.title}</div>
