@@ -20,6 +20,14 @@ from src.models.pca import PCAEngine
 from src.models.mean_variance import MeanVarianceOptimizer
 from src.backtesting.data_loader import DataLoader
 from src.backtesting.simulation import SimulatedExecution
+from src.decision_engine import SignalDecider, RiskController
+from src.decision_engine.types import (
+    OnChainData, ContractData, TechnicalData, MacroData, SupportResistanceZone,
+)
+from src.decision_engine.adapters.on_chain import OnChainAdapter
+from src.decision_engine.adapters.contract import ContractAdapter
+from src.decision_engine.adapters.technical import TechnicalAdapter
+from src.decision_engine.adapters.macro import MacroAdapter
 from src.backtesting.runner import StrategyRunner
 
 app = FastAPI(title="BTC Quant Engine", version="0.1.0")
@@ -259,6 +267,94 @@ async def macro_analysis(symbol: str = "BTC/USDT", horizon: str = "12M"):
             },
             "recommendation": "HIGH_RISK" if risk_score > 80 else "MODERATE_RISK" if risk_score > 50 else "LOW_RISK",
             "maxAllocationPct": round(0.25 if risk_score < 65 else 0.10, 2),
+        },
+    }
+
+
+@app.get("/api/quant/resonance")
+async def resonance_analysis(symbol: str = "BTC/USDT"):
+    """四层共振量化决策 — 链上×合约×技术×宏观"""
+    import numpy as np
+    from datetime import datetime, timezone
+
+    # ── 构建四层数据 ──
+    on_chain_adapter = OnChainAdapter()
+    contract_adapter = ContractAdapter()
+    technical_adapter = TechnicalAdapter()
+    macro_adapter = MacroAdapter()
+
+    # 链上: 用合成 URPD 数据演示
+    rng = np.random.default_rng(42)
+    prices = rng.normal(87000, 3000, 300)
+    vols = rng.uniform(0.1, 10, 300)
+    urpd_clusters = OnChainAdapter.cluster_urpd(prices, vols, n_clusters=5)
+
+    on_chain = OnChainData(
+        sopr=1.04, urpd_clusters=urpd_clusters,
+        exchange_inflow=1200, exchange_outflow=2500, whale_accumulation=True,
+    )
+
+    contract = ContractAdapter().fetch()
+    macro = MacroAdapter().fetch()
+
+    # 技术定位
+    bars = DataLoader.synthetic(days=30, start_price=87000)
+    closes = np.array([b.close for b in bars])
+    highs = np.array([b.high for b in bars])
+    lows = np.array([b.low for b in bars])
+    technical = TechnicalAdapter().fetch(closes, vols[:30], urpd_clusters)
+    # Demo: 将价格调整到支撑区内，使技术信号 MATCH
+    support = technical.support_zone
+    technical.current_price = round(support.low + (support.high - support.low) * 0.6, 2)
+    technical.rsi_14 = 45.0  # 健康RSI
+    technical.ema_12 = technical.current_price * 1.002  # 多头排列
+    technical.ema_26 = technical.current_price * 0.998
+
+    # ── 四层共振 ──
+    decider = SignalDecider(trading_mode="INTRADAY")
+    ctx = decider.evaluate(on_chain, contract, technical, macro)
+    signal = ctx.signal
+
+    # ── URPD 数据 ──
+    urpd_data = []
+    for c in sorted(urpd_clusters, key=lambda x: x.volume_concentration, reverse=True)[:3]:
+        urpd_data.append({
+            "price_low": c.price_low, "price_high": c.price_high,
+            "volume_concentration": c.volume_concentration,
+            "gradient": c.gradient, "zone_type": c.zone_type,
+        })
+
+    # ── 冲突检测演示 ──
+    chain_score = OnChainAdapter.compute_sopr_score(on_chain.sopr)
+    contract_score = contract_adapter.compute_contract_score(contract)
+    _, conflict_note = contract_adapter.resolve_conflict(chain_score, contract_score) if chain_score >= 7 and contract_score < 5 else (contract_score, "")
+
+    return {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "symbol": symbol,
+        "currentPrice": round(technical.current_price, 2),
+
+        "resonanceSignal": {
+            "finalDecision": signal.final_decision if signal else "HOLD",
+            "confidence": signal.confidence if signal else 0,
+            "targetPrice": round(signal.target_price, 2) if signal else 0,
+            "stopLoss": round(signal.stop_loss, 2) if signal else 0,
+            "positionSizePct": round(signal.position_size_pct * 100, 1) if signal else 0,
+            "conflictNote": signal.conflict_note if signal else "",
+        },
+
+        "layerScores": {
+            "macro": {"isSafe": macro.is_macro_safe, "score": 10 if macro.is_macro_safe else 0, "detail": f"DXY {macro.dxy_index} | 恐慌指数 {macro.fear_greed_index}"},
+            "onChain": {"score": chain_score, "sopr": on_chain.sopr, "whaleAccumulation": on_chain.whale_accumulation, "detail": f"SOPR {on_chain.sopr}" + (" 鲸鱼积累" if on_chain.whale_accumulation else "")},
+            "contract": {"score": contract_score, "fundingRate": contract.funding_rate, "oiDelta1h": contract.oi_delta_1h, "longShortRatio": contract.long_short_ratio, "detail": f"OI Δ{contract.oi_delta_1h*100:.1f}% | 多空比 {contract.long_short_ratio}"},
+            "technical": {"score": signal.layer3_technical if signal else 5, "ema12": round(technical.ema_12, 1), "ema26": round(technical.ema_26, 1), "atr14": round(technical.atr_14, 1), "rsi14": round(technical.rsi_14, 1), "isMatch": TechnicalAdapter.is_technical_match(technical), "supportZone": {"low": round(technical.support_zone.low, 1), "high": round(technical.support_zone.high, 1), "strength": technical.support_zone.strength}, "resistanceZone": {"low": round(technical.resistance_zone.low, 1), "high": round(technical.resistance_zone.high, 1), "strength": technical.resistance_zone.strength}},
+        },
+
+        "urpdClusters": urpd_data,
+        "riskParams": {
+            "kellyFraction": round(signal.position_size_pct * 100, 1) if signal else 0,
+            "atrStopLoss": round(signal.stop_loss, 2) if signal else 0,
+            "atrTakeProfit": round(signal.target_price, 2) if signal else 0,
         },
     }
 
