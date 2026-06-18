@@ -304,6 +304,43 @@ body { background: var(--bg); color: var(--text);
 .pca-bar-bg { flex: 1; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
 .pca-bar { height: 100%; border-radius: 3px; background: var(--purple); min-width: 2px; }
 
+/* ══════════════════════════════════════════
+   Intraday Entry/Exit Panel
+   ══════════════════════════════════════════ */
+.intraday-panel { padding: 14px 18px; border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, #1a233208, var(--card)); }
+.intraday-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.intraday-title { font-size: 14px; font-weight: 700; }
+.intraday-badge { font-size: 10px; padding: 3px 10px; border-radius: 12px; font-weight: 700; border: 1px solid; }
+
+.intraday-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-bottom: 12px; }
+.intraday-card { background: var(--bg); border: 1px solid var(--border);
+  border-radius: 8px; padding: 12px; text-align: center; }
+.intraday-card.buy { border-color: #3fb95044; background: #3fb95008; }
+.intraday-card.sell { border-color: #f8514944; background: #f8514908; }
+.intraday-card.stop { border-color: #f8514944; background: #f8514904; }
+.intraday-card.current { border-color: #58a6ff44; background: #58a6ff08; }
+.intraday-card.rr { border-color: #d2991d44; background: #d2991d08; }
+.intraday-card.confidence { border-color: #bc8cff44; background: #bc8cff08; }
+
+.id-label { font-size: 9px; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 4px; }
+.id-price { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.id-sub { font-size: 9px; color: var(--text-secondary); margin-top: 3px; }
+.id-source { font-size: 8px; color: var(--t2); margin-top: 4px; opacity: 0.7; }
+
+/* Day Range Bar */
+.intraday-range { margin-top: 4px; }
+.ir-bar { position: relative; height: 24px; background: linear-gradient(90deg, #3fb95033 0%, #f8514933 100%);
+  border-radius: 12px; display: flex; align-items: center; overflow: hidden; }
+.ir-zone { height: 100%; display: flex; align-items: center; position: relative; }
+.ir-zone.buy-zone { justify-content: flex-start; padding-left: 6px; }
+.ir-zone.sell-zone { justify-content: flex-end; padding-right: 6px; margin-left: auto; }
+.ir-marker { font-size: 9px; font-weight: 700; color: #fff; text-shadow: 0 1px 2px #00000044; }
+.ir-current { position: absolute; top: 0; transform: translateX(-50%); }
+.ir-dot { width: 14px; height: 14px; border-radius: 50%; background: #58a6ff;
+  border: 2px solid #fff; box-shadow: 0 0 8px #58a6ff88; margin: 5px auto 0; }
+.ir-labels { display: flex; justify-content: space-between; font-size: 9px; color: var(--text-secondary); margin-top: 4px; }
+
 /* ── Responsive ──────────────────────────── */
 @media (max-width: 1400px) {
   .main-grid { grid-template-columns: 1fr 250px; }

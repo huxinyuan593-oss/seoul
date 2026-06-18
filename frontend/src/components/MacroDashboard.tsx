@@ -82,6 +82,9 @@ export function MacroDashboard() {
         )}
       </div>
 
+      {/* ── 日内最佳买卖点位 ── */}
+      <IntradayEntryExit data={data} />
+
       {/* ── Short-Term Targets ── */}
       <div className="macro-section">
         <h3>🎯 短期交易目标</h3>
@@ -227,6 +230,139 @@ export function MacroDashboard() {
               </div>
             )}
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** 日内最佳买卖点位 — 基于多指标融合计算 */
+function IntradayEntryExit({ data }: { data: MacroData }) {
+  const { currentPrice, shortTerm, longTerm } = data;
+
+  // Best buy: Z-Score regression target or support level
+  const zTarget = shortTerm.zScoreAnalysis.regressionTarget;
+  const bbLower = currentPrice * (1 - shortTerm.garchRisk.currentVolatility * 2);
+  const buyEntry = Math.max(zTarget, bbLower);
+  const buyPct = ((buyEntry - currentPrice) / currentPrice * 100);
+
+  // Best sell: Upper Bollinger or resistance
+  const bbUpper = currentPrice * (1 + shortTerm.garchRisk.currentVolatility * 2);
+  const sellTarget = Math.min(bbUpper, currentPrice * 1.05);
+  const sellPct = ((sellTarget - currentPrice) / currentPrice * 100);
+
+  // Stop loss: 2% below buy entry
+  const stopLoss = buyEntry * 0.98;
+  const stopPct = ((stopLoss - buyEntry) / buyEntry * 100);
+
+  // Risk/Reward
+  const risk = buyEntry - stopLoss;
+  const reward = sellTarget - buyEntry;
+  const rrRatio = risk > 0 ? reward / risk : 0;
+
+  // Signal confidence
+  const signalConfidence = shortTerm.zScoreAnalysis.confidence;
+  const isBuyZone = shortTerm.zScoreAnalysis.currentZ < -1.0;
+  const isSellZone = shortTerm.zScoreAnalysis.currentZ > 1.5;
+
+  const actionColor = isBuyZone ? '#3fb950' : isSellZone ? '#f85149' : '#d2991d';
+  const actionText = isBuyZone ? '买入区域' : isSellZone ? '卖出区域' : '观望区域';
+
+  return (
+    <div className="intraday-panel">
+      <div className="intraday-header">
+        <span className="intraday-title">📍 日内最佳交易点位</span>
+        <span className="intraday-badge" style={{ background: actionColor + '22', color: actionColor, borderColor: actionColor }}>
+          {actionText}
+        </span>
+      </div>
+
+      <div className="intraday-grid">
+        {/* Buy Entry */}
+        <div className="intraday-card buy">
+          <div className="id-label">🟢 最佳买入价</div>
+          <div className="id-price">${buyEntry < currentPrice ? buyEntry.toFixed(1) : currentPrice.toFixed(1)}</div>
+          <div className="id-sub">
+            {buyEntry < currentPrice
+              ? `低于现价 ${Math.abs(buyPct).toFixed(2)}%`
+              : '等待回调至支撑位'}
+          </div>
+          <div className="id-source">
+            Z-Score回归点 · BB下轨 · 支撑位
+          </div>
+        </div>
+
+        {/* Current Price */}
+        <div className="intraday-card current">
+          <div className="id-label">📍 当前价格</div>
+          <div className="id-price">${currentPrice.toLocaleString()}</div>
+          <div className="id-sub">
+            HMM: {shortTerm.hmmState.currentState === 'BULL' ? '🐂牛' : shortTerm.hmmState.currentState === 'BEAR' ? '🐻熊' : '📊震'}
+            {' · '}σ {(shortTerm.garchRisk.currentVolatility * 100).toFixed(1)}%
+          </div>
+        </div>
+
+        {/* Sell Target */}
+        <div className="intraday-card sell">
+          <div className="id-label">🔴 最佳卖出价</div>
+          <div className="id-price">${sellTarget.toFixed(1)}</div>
+          <div className="id-sub">
+            高于现价 +{sellPct.toFixed(2)}%
+          </div>
+          <div className="id-source">
+            BB上轨 · 阻力位
+          </div>
+        </div>
+
+        {/* Stop Loss */}
+        <div className="intraday-card stop">
+          <div className="id-label">🛑 止损价</div>
+          <div className="id-price">${stopLoss.toFixed(1)}</div>
+          <div className="id-sub" style={{ color: '#f85149' }}>
+            -{Math.abs(stopPct).toFixed(2)}% from entry
+          </div>
+        </div>
+
+        {/* Risk/Reward */}
+        <div className="intraday-card rr">
+          <div className="id-label">⚖️ 风险回报比</div>
+          <div className="id-price" style={{ color: rrRatio >= 2 ? '#3fb950' : rrRatio >= 1 ? '#d2991d' : '#f85149' }}>
+            1:{rrRatio.toFixed(1)}
+          </div>
+          <div className="id-sub">
+            {rrRatio >= 2 ? '✅ 优秀' : rrRatio >= 1 ? '⚠️ 可接受' : '❌ 不划算'}
+          </div>
+        </div>
+
+        {/* Confidence */}
+        <div className="intraday-card confidence">
+          <div className="id-label">🎯 信号置信度</div>
+          <div className="id-price" style={{ color: signalConfidence > 0.7 ? '#3fb950' : signalConfidence > 0.4 ? '#d2991d' : '#f85149' }}>
+            {(signalConfidence * 100).toFixed(0)}%
+          </div>
+          <div className="id-sub">
+            Kelly仓位 {(shortTerm.kellySizing.adjustedFraction * 100).toFixed(1)}%
+          </div>
+        </div>
+      </div>
+
+      {/* Day range bar */}
+      <div className="intraday-range">
+        <div className="ir-bar">
+          <div className="ir-zone buy-zone" style={{ width: `${Math.max(0, ((currentPrice - buyEntry) / (sellTarget - buyEntry)) * 100)}%` }}>
+            <span className="ir-marker">▼ 买</span>
+          </div>
+          <div className="ir-current" style={{ left: `${((currentPrice - buyEntry) / (sellTarget - buyEntry)) * 100}%` }}>
+            <div className="ir-dot" />
+          </div>
+          <div className="ir-zone sell-zone" style={{ width: `${Math.max(0, ((sellTarget - currentPrice) / (sellTarget - buyEntry)) * 100)}%` }}>
+            <span className="ir-marker">▲ 卖</span>
+          </div>
+        </div>
+        <div className="ir-labels">
+          <span>${buyEntry.toFixed(0)}</span>
+          <span>${currentPrice.toFixed(0)}</span>
+          <span>${sellTarget.toFixed(0)}</span>
         </div>
       </div>
     </div>
