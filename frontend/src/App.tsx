@@ -6,6 +6,7 @@ import { AnalysisPanel } from './components/AnalysisPanel';
 import { BuyZoneAnalysis } from './components/BuyZoneAnalysis';
 import { NewsPanel } from './components/NewsPanel';
 import { MacroDashboard } from './components/MacroDashboard';
+import { MarketTicker } from './components/MarketTicker';
 import { OrderPanel } from './components/OrderPanel';
 import { MarketBar } from './components/MarketBar';
 import { BacktestPanel } from './components/BacktestPanel';
@@ -39,6 +40,7 @@ export default function App() {
     <div className="app">
       <MarketBar tick={lastTick} connected={connected} />
 
+      <MarketTicker />
       <div className="macro-row">
         <MacroDashboard />
       </div>

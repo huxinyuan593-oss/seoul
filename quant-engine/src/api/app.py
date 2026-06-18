@@ -28,6 +28,7 @@ from src.decision_engine.adapters.on_chain import OnChainAdapter
 from src.decision_engine.adapters.contract import ContractAdapter
 from src.decision_engine.adapters.technical import TechnicalAdapter
 from src.decision_engine.adapters.macro import MacroAdapter
+from src.ai_analyst import NewsAnalyzer, DailySummaryEngine
 from src.backtesting.runner import StrategyRunner
 
 app = FastAPI(title="BTC Quant Engine", version="0.1.0")
@@ -356,6 +357,77 @@ async def resonance_analysis(symbol: str = "BTC/USDT"):
             "atrStopLoss": round(signal.stop_loss, 2) if signal else 0,
             "atrTakeProfit": round(signal.target_price, 2) if signal else 0,
         },
+    }
+
+
+@app.get("/api/quant/daily-summary")
+async def daily_summary(date: str = ""):
+    """每日行情AI解说与总结"""
+    from datetime import date as dt
+
+    target_date = date or dt.today().isoformat()
+    engine = DailySummaryEngine()
+    analyzer = NewsAnalyzer()
+
+    # Try loading archived summary first
+    existing = engine.load_summary(target_date)
+    if existing:
+        return {
+            "source": "archive",
+            "summary": {
+                "date": existing.date,
+                "marketNarrative": existing.market_narrative,
+                "nextDayOutlook": existing.next_day_outlook,
+                "macroSafetyRating": existing.macro_safety_rating,
+                "sentimentDistribution": existing.sentiment_distribution,
+                "coreDrivers": existing.core_drivers,
+                "keyEvents": existing.key_events,
+                "totalNewsCount": existing.total_news_count,
+                "categoryBreakdown": existing.category_breakdown,
+            },
+        }
+
+    # Generate fresh summary from demo news
+    demo_headlines = [
+        {"title": "比特币ETF单日净流入突破5亿美元 创历史新高", "source": "CoinDesk"},
+        {"title": "美联储主席鲍威尔暗示9月可能降息", "source": "Reuters"},
+        {"title": "MicroStrategy再次增持12,000枚比特币", "source": "Bloomberg"},
+        {"title": "SEC推迟对现货比特币ETF期权的裁决", "source": "CoinDesk"},
+        {"title": "某大型交易所热钱包遭攻击 损失约4000万美元", "source": "Cointelegraph"},
+        {"title": "比特币全网算力突破750 EH/s 再创历史新高", "source": "TheBlock"},
+        {"title": "欧盟发布MiCA加密监管最终技术标准", "source": "Reuters"},
+        {"title": "贝莱德CEO：比特币是合法的资产类别", "source": "Bloomberg"},
+        {"title": "美国财政部报告将加密货币列为洗钱风险", "source": "Reuters"},
+        {"title": "CME比特币期货未平仓量突破120亿美元纪录", "source": "CoinDesk"},
+        {"title": "灰度申请推出备兑看涨比特币ETF", "source": "Bloomberg"},
+        {"title": "稳定币市值本周增长20亿美元 流动性持续流入", "source": "TheBlock"},
+    ]
+
+    analyzed = analyzer.analyze_batch(demo_headlines)
+    summary = engine.generate(analyzed, {"current_price": 87432, "daily_change_pct": 2.34})
+
+    return {
+        "source": "generated",
+        "summary": {
+            "date": summary.date,
+            "marketNarrative": summary.market_narrative,
+            "nextDayOutlook": summary.next_day_outlook,
+            "macroSafetyRating": summary.macro_safety_rating,
+            "sentimentDistribution": summary.sentiment_distribution,
+            "coreDrivers": summary.core_drivers,
+            "keyEvents": summary.key_events,
+            "totalNewsCount": summary.total_news_count,
+            "categoryBreakdown": summary.category_breakdown,
+        },
+        "analyzedNews": [
+            {
+                "id": n.id, "title": n.title, "source": n.source,
+                "sentiment": n.sentiment.value, "confidence": n.confidence,
+                "impactLevel": n.impact_level, "category": n.category,
+                "summaryZh": n.summary_zh,
+            }
+            for n in analyzed
+        ],
     }
 
 
