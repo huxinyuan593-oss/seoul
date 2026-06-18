@@ -4,9 +4,11 @@ Serves:
   POST /api/quant/signals     — Generate trade signals
   POST /api/quant/backtest    — Run backtest
   GET  /api/quant/health      — Health check
+  GET  /api/quant/macro-analysis — 8-model fusion macro analysis
 """
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import numpy as np
 from src.engine import QuantEngine, MarketSnapshot
@@ -21,6 +23,15 @@ from src.backtesting.simulation import SimulatedExecution
 from src.backtesting.runner import StrategyRunner
 
 app = FastAPI(title="BTC Quant Engine", version="0.1.0")
+
+# CORS — allow frontend on :3000 to call quant engine
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Global engine instance (in production, use proper lifecycle management)
 engine = QuantEngine()
