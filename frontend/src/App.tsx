@@ -5,6 +5,7 @@ import { TradingViewChart, CrosshairData } from './components/TradingViewChart';
 import { AnalysisPanel } from './components/AnalysisPanel';
 import { BuyZoneAnalysis } from './components/BuyZoneAnalysis';
 import { NewsPanel } from './components/NewsPanel';
+import { MacroDashboard } from './components/MacroDashboard';
 import { OrderPanel } from './components/OrderPanel';
 import { MarketBar } from './components/MarketBar';
 import { BacktestPanel } from './components/BacktestPanel';
@@ -38,10 +39,13 @@ export default function App() {
     <div className="app">
       <MarketBar tick={lastTick} connected={connected} />
 
+      <div className="macro-row">
+        <MacroDashboard />
+      </div>
+
       <div className="main-grid">
         <div className="chart-area">
           <TradingViewChart bars={bars} height={520} onCrosshairMove={handleCrosshair} />
-          {/* Drawing toolbar */}
           <div className="drawing-toolbar">
             <button title="趋势线 (点击图表两点)" onClick={() => alert('🎯 点击图表上任意两点即可绘制趋势线 (使用 crosshair 模式)')}>📐 趋势线</button>
             <button title="水平线" onClick={() => alert('📏 在图表任意价格位置点击右键 → 添加水平线')}>📏 水平线</button>

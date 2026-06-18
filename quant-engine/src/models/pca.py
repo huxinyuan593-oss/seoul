@@ -41,13 +41,16 @@ class PCAEngine:
         Returns:
             PCAResult with components and explained variance.
         """
-        pca = PCA(n_components=min(n_components, returns_matrix.shape[1]))
+        actual_n = min(n_components, returns_matrix.shape[1])
+        pca = PCA(n_components=actual_n)
         pca.fit(returns_matrix)
 
-        # Factor loadings: correlation between components and original features
-        loadings = np.corrcoef(
-            np.vstack([pca.components_, returns_matrix.T])
-        )[:n_components, n_components:]
+        # Factor loadings: correlation between each component and each original feature
+        # components_ shape: (n_components, n_features)
+        # Loadings ≈ components_ scaled by sqrt(eigenvalues)
+        loadings = pca.components_.copy()
+        for i in range(actual_n):
+            loadings[i] = loadings[i] * np.sqrt(pca.explained_variance_[i])
 
         return PCAResult(
             components=pca.components_,
