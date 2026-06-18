@@ -151,10 +151,9 @@ export function MacroDashboard() {
   );
 }
 
-/** GBM Price Cone Chart — lightweight-charts implementation */
+/** GBM Price Cone Chart + Buy/Sell Entry Points Overlay */
 function GBMChart({ data }: { data: MacroData }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<IChartApi | null>(null);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -163,25 +162,30 @@ function GBMChart({ data }: { data: MacroData }) {
       height: 420,
       layout: { background: { color: '#131722' }, textColor: '#d1d4dc' },
       grid: { vertLines: { color: '#2a2e39' }, horzLines: { color: '#2a2e39' } },
-      crosshair: { mode: 0 },
+      crosshair: { mode: 1 },
       rightPriceScale: { borderColor: '#2a2e39' },
       timeScale: { borderColor: '#2a2e39', timeVisible: true },
     });
 
-    const { currentPrice, longTerm } = data;
+    const { currentPrice, shortTerm, longTerm } = data;
     const { ciLow, ciHigh, meanPrice } = {
       ciLow: longTerm.gbmProjection.confidenceInterval95[0],
       ciHigh: longTerm.gbmProjection.confidenceInterval95[1],
       meanPrice: longTerm.gbmProjection.meanPrice,
     };
+
+    // ── Entry price calculations ──
+    const bbHalf = currentPrice * shortTerm.garchRisk.currentVolatility * 2;
+    const buyEntry = Math.max(shortTerm.zScoreAnalysis.regressionTarget, currentPrice - bbHalf);
+    const sellTarget = Math.min(currentPrice + bbHalf, ciHigh);
+    const stopLoss = buyEntry * 0.98;
+
     const days = longTerm.gbmProjection.horizonMonths * 21;
     const now = Math.floor(Date.now() / 1000);
     const daySec = 86400;
 
-    // Upper band (95% CI)
-    const upperSeries = chart.addLineSeries({
-      color: '#2962ff44', lineWidth: 1,
-    });
+    // ── GBM Cone ──
+    const upperSeries = chart.addLineSeries({ color: '#2962ff33', lineWidth: 1 });
     const upperData: LineData[] = [];
     for (let i = 0; i <= days; i++) {
       const t = i / days;
@@ -189,10 +193,7 @@ function GBMChart({ data }: { data: MacroData }) {
     }
     upperSeries.setData(upperData);
 
-    // Lower band (95% CI)
-    const lowerSeries = chart.addLineSeries({
-      color: '#2962ff44', lineWidth: 1,
-    });
+    const lowerSeries = chart.addLineSeries({ color: '#2962ff33', lineWidth: 1 });
     const lowerData: LineData[] = [];
     for (let i = 0; i <= days; i++) {
       const t = i / days;
@@ -200,15 +201,7 @@ function GBMChart({ data }: { data: MacroData }) {
     }
     lowerSeries.setData(lowerData);
 
-    // Fill between
-    const fillSeries = chart.addLineSeries({
-      color: '#2962ff22', lineWidth: 1,
-    });
-    fillSeries.setData(upperData);
-    // Simple mean line
-    const meanSeries = chart.addLineSeries({
-      color: '#787b86', lineWidth: 1, lineStyle: 2,
-    });
+    const meanSeries = chart.addLineSeries({ color: '#787b86', lineWidth: 1, lineStyle: 2 });
     const meanData: LineData[] = [];
     for (let i = 0; i <= days; i++) {
       const t = i / days;
@@ -216,15 +209,87 @@ function GBMChart({ data }: { data: MacroData }) {
     }
     meanSeries.setData(meanData);
 
-    // Current price marker
-    const markerSeries = chart.addLineSeries({ color: '#fff', lineWidth: 2, lastValueVisible: true });
-    markerSeries.setData([{ time: now as Time, value: currentPrice }]);
+    // ── 🟢 BUY ENTRY LINE ──
+    const buySeries = chart.addLineSeries({
+      color: '#089981', lineWidth: 2, lineStyle: 2,
+      priceLineVisible: false, lastValueVisible: true,
+      title: `买入 $${buyEntry.toFixed(0)}`,
+    });
+    const buyLine: LineData[] = [
+      { time: now as Time, value: buyEntry },
+      { time: (now + days * daySec) as Time, value: buyEntry },
+    ];
+    buySeries.setData(buyLine);
+
+    // ── 🔴 SELL TARGET LINE ──
+    const sellSeries = chart.addLineSeries({
+      color: '#f23645', lineWidth: 2, lineStyle: 2,
+      priceLineVisible: false, lastValueVisible: true,
+      title: `卖出 $${sellTarget.toFixed(0)}`,
+    });
+    const sellLine: LineData[] = [
+      { time: now as Time, value: sellTarget },
+      { time: (now + days * daySec) as Time, value: sellTarget },
+    ];
+    sellSeries.setData(sellLine);
+
+    // ── 🟠 STOP LOSS LINE ──
+    const stopSeries = chart.addLineSeries({
+      color: '#f0883e', lineWidth: 1, lineStyle: 2,
+      priceLineVisible: false, lastValueVisible: true,
+      title: `止损 $${stopLoss.toFixed(0)}`,
+    });
+    const stopLine: LineData[] = [
+      { time: now as Time, value: stopLoss },
+      { time: (now + days * daySec) as Time, value: stopLoss },
+    ];
+    stopSeries.setData(stopLine);
+
+    // ── Current price (thick dashed) ──
+    const priceSeries = chart.addLineSeries({ color: '#d1d4dc', lineWidth: 1, lineStyle: 2,
+      priceLineVisible: false, lastValueVisible: true,
+      title: `现价 $${currentPrice.toFixed(0)}` });
+    priceSeries.setData([
+      { time: now as Time, value: currentPrice },
+      { time: (now + days * daySec) as Time, value: currentPrice },
+    ]);
+
+    // ── Price markers at the right edge ──
+    chart.addLineSeries({ color: '#089981', lineWidth: 1, lastValueVisible: true }).setData([
+      { time: (now + 1 * daySec) as Time, value: buyEntry },
+    ]);
+    chart.addLineSeries({ color: '#f23645', lineWidth: 1, lastValueVisible: true }).setData([
+      { time: (now + 1 * daySec) as Time, value: sellTarget },
+    ]);
 
     chart.timeScale().fitContent();
-    chartRef.current = chart;
 
     return () => chart.remove();
   }, [data]);
 
-  return <div ref={containerRef} style={{ width: '100%', height: 420 }} />;
+  // Legend overlay
+  const { shortTerm, currentPrice } = data;
+  const bbHalf = currentPrice * shortTerm.garchRisk.currentVolatility * 2;
+  const buyEntry = Math.max(shortTerm.zScoreAnalysis.regressionTarget, currentPrice - bbHalf);
+  const sellTarget = Math.min(currentPrice + bbHalf, data.longTerm.gbmProjection.confidenceInterval95[1]);
+  const stopLoss = buyEntry * 0.98;
+  const rr = ((sellTarget - buyEntry) / (buyEntry - stopLoss));
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <div ref={containerRef} style={{ width: '100%', height: 420 }} />
+      {/* Overlay legend */}
+      <div style={{
+        position: 'absolute', bottom: 8, left: 12, display: 'flex', gap: 16,
+        background: '#131722ee', padding: '6px 12px', borderRadius: 4,
+        border: '1px solid #2a2e39', fontSize: 11, fontFamily: 'monospace',
+      }}>
+        <span style={{ color: '#089981' }}>▼ 买入 ${buyEntry.toFixed(0)}</span>
+        <span style={{ color: '#f23645' }}>▲ 卖出 ${sellTarget.toFixed(0)}</span>
+        <span style={{ color: '#f0883e' }}>✕ 止损 ${stopLoss.toFixed(0)}</span>
+        <span style={{ color: '#d1d4dc' }}>— 现价 ${currentPrice.toFixed(0)}</span>
+        <span style={{ color: '#787b86' }}>| R:R 1:{rr.toFixed(1)}</span>
+      </div>
+    </div>
+  );
 }
