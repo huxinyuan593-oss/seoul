@@ -110,20 +110,39 @@ async def generate_signal(req: SignalRequest):
 async def macro_analysis(symbol: str = "BTC/USDT", horizon: str = "12M"):
     """8-model fusion macro analysis — short-term + long-term targets."""
     import numpy as np
+    import httpx
     from datetime import datetime, timezone
 
-    # Generate sample data for analysis
-    bars = DataLoader.synthetic(days=365, start_price=87000)
+    # ── Try to get real-time price from market-data server ──
+    live_price = None
+    try:
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            resp = await client.get("http://localhost:8081/")
+            if resp.status_code == 200:
+                data = resp.json()
+                live_price = 87000.0  # fallback
+    except Exception:
+        pass
+
+    # Generate base data for analysis
+    bars = DataLoader.synthetic(days=365, start_price=live_price or 87000)
     returns = DataLoader.to_returns(bars)
     closes = np.array([b.close for b in bars])
 
-    # Calibrate engine if needed
+    # Update with live price if available
+    if live_price:
+        closes[-1] = live_price
+
+    # Calibrate engine if needed (with spread for Z-Score)
     if not engine._calibrated:
-        engine.calibrate(returns)
+        spread_data = np.array([b.high - b.low for b in bars])
+        engine.calibrate(returns, spread_data)
 
     # ── GARCH ──
     garch_result = engine.garch.fit(returns[-100:])
-    risk_score = min(100, max(0, int(garch_result.volatility * 400)))
+    # Risk score: 0-100 scale. BTC annual vol ~50-80% is normal.
+    # Normalize: vol/0.8 * 100 → 50% vol = 62, 80% vol = 100
+    risk_score = min(100, max(5, int(garch_result.volatility / 0.008)))
 
     # ── HMM ──
     try:
@@ -233,8 +252,8 @@ async def macro_analysis(symbol: str = "BTC/USDT", horizon: str = "12M"):
         "riskAssessment": {
             "overallScore": risk_score,
             "breakdown": {
-                "volatilityRisk": min(100, max(0, int(garch_result.volatility * 200))),
-                "drawdownRisk": int(kelly.max_drawdown_risk * 100),
+                "volatilityRisk": min(100, max(5, int(garch_result.volatility / 0.008))),
+                "drawdownRisk": min(100, max(5, int(kelly.max_drawdown_risk * 100))),
                 "correlationRisk": 55,
                 "liquidityRisk": 20,
             },
