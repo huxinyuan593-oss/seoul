@@ -71,7 +71,9 @@ class StrategyRunner:
         # ── Calibration period (first 30 bars) ──
         cal_bars = bars[:30]
         cal_returns = DataLoader.to_returns(cal_bars)
-        self.engine.calibrate(cal_returns)
+        # Also calibrate with spread data so Z-Score strategy works
+        cal_spread = np.array([b.high - b.low for b in cal_bars])
+        self.engine.calibrate(cal_returns, cal_spread)
 
         # ── Trading period ──
         trade_bars = bars[30:]
@@ -97,16 +99,21 @@ class StrategyRunner:
                 volume=bar.volume,
             )
 
-            # Run engine synchronously (simplified — in production this is async)
+            # Run engine — handle both sync and async contexts
             import asyncio
             try:
                 loop = asyncio.get_event_loop()
                 if loop.is_running():
-                    # Can't run async in running loop; skip signal for this bar
-                    signal = None
+                    # FastAPI context: create a new loop in a thread or run synchronously
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(
+                            asyncio.run, self.engine.process(snapshot)
+                        )
+                        signal = future.result(timeout=5)
                 else:
                     signal = loop.run_until_complete(self.engine.process(snapshot))
-            except RuntimeError:
+            except (RuntimeError, concurrent.futures.TimeoutError, Exception):
                 signal = None
 
             # ── Execute signals ──
