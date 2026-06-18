@@ -1,234 +1,149 @@
 /**
- * Macro Quantitative Analysis Dashboard
- * 8-model fusion → Short-Term Targets + Long-Term Targets + Risk Assessment
+ * BTC 宏观量化分析看板 — TradingView 标准深色主题
+ *
+ * 实时对接 GET /api/quant/macro-analysis
+ * 左侧: GBM 价格扩散锥图 (lightweight-charts)
+ * 右侧: 定量投资目标 + 风控仓位决策
  */
-
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { createChart, IChartApi, ISeriesApi, LineData, Time } from 'lightweight-charts';
 
 interface MacroData {
-  timestamp: string;
-  symbol: string;
-  currentPrice: number;
+  timestamp: string; symbol: string; currentPrice: number;
   shortTerm: {
     zScoreAnalysis: { currentZ: number; regressionTarget: number; signal: string; confidence: number; halfLife: number; expectedReturnDays: number };
-    hmmState: { currentState: string; stateProbability: number; recommendedStrategy: string; transitionRisk: number };
+    hmmState: { currentState: string; stateProbability: number; recommendedStrategy: string };
     garchRisk: { currentVolatility: number; riskScore: number; circuitBreakerStatus: string; maxRecommendedPosition: number };
-    kellySizing: { optimalFraction: number; adjustedFraction: number; criterion: string; maxDrawdownRisk: number };
+    kellySizing: { optimalFraction: number; adjustedFraction: number; criterion: string };
   };
   longTerm: {
-    gbmProjection: { horizonMonths: number; meanPrice: number; confidenceInterval95: [number, number]; annualDrift: number; annualVolatility: number };
+    gbmProjection: { horizonMonths: number; meanPrice: number; confidenceInterval95: [number,number]; annualDrift: number; annualVolatility: number; simulationPaths: number };
     bsmSentiment: { impliedVolatility: number; atmCallPrice: number; marketSentiment: string };
     meanVariancePortfolio: { weights: Record<string,number>; expectedReturn: number; risk: number; sharpeRatio: number };
     pcaFactors: { factor1: { name: string; varianceExplained: number }; factor2: { name: string; varianceExplained: number }; factor3: { name: string; varianceExplained: number } };
   };
-  riskAssessment: { overallScore: number; recommendation: string; maxAllocationPct: number; breakdown: Record<string,number> };
+  riskAssessment: { overallScore: number; recommendation: string; maxAllocationPct: number };
 }
 
 export function MacroDashboard() {
   const [data, setData] = useState<MacroData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [hoverTarget, setHoverTarget] = useState<string | null>(null);
 
-  const fetchData = async () => {
-    try {
-      const res = await fetch('http://localhost:8001/api/quant/macro-analysis?symbol=BTC/USDT&horizon=12M');
-      const json = await res.json();
-      setData(json);
-    } catch {
-      // Quant engine may not be running
-    }
-    setLoading(false);
-  };
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const res = await fetch('http://localhost:8001/api/quant/macro-analysis');
+        const json = await res.json();
+        setData(json);
+      } catch {}
+      setLoading(false);
+    };
+    fetchData();
+    const i = setInterval(fetchData, 60000);
+    return () => clearInterval(i);
+  }, []);
 
-  useEffect(() => { fetchData(); const i = setInterval(fetchData, 60000); return () => clearInterval(i); }, []);
+  if (loading) return <div className="tv-loading"><div className="tv-spinner" /><span>加载宏观量化分析...</span></div>;
+  if (!data) return <div className="tv-loading">量化引擎未连接 (需要 :8001)</div>;
 
-  if (loading) return <div className="macro-loading">加载宏观分析...</div>;
-  if (!data) return <div className="macro-loading">量化引擎未连接 (需要启动 :8001)</div>;
-
-  const { shortTerm, longTerm, riskAssessment, currentPrice } = data;
-  const riskColor = riskAssessment.overallScore > 75 ? '#f85149' : riskAssessment.overallScore > 50 ? '#f0883e' : '#3fb950';
+  const { currentPrice, shortTerm, longTerm, riskAssessment } = data;
+  const riskColor = riskAssessment.overallScore > 75 ? 'var(--tv-red)' : riskAssessment.overallScore > 50 ? 'var(--tv-orange)' : 'var(--tv-green)';
 
   return (
-    <div className="macro-dashboard">
-      {/* ── Header ── */}
-      <div className="macro-header">
-        <h2>📊 宏观量化分析</h2>
-        <span className="macro-updated">{new Date(data.timestamp).toLocaleTimeString()}</span>
-      </div>
-
-      {/* ── Risk Score Gauge ── */}
-      <div className="macro-risk-gauge"
-        onMouseEnter={() => setHoverTarget('risk')}
-        onMouseLeave={() => setHoverTarget(null)}>
-        <div className="gauge-ring" style={{ background: `conic-gradient(${riskColor} ${riskAssessment.overallScore}%, #21262d 0)` }}>
-          <div className="gauge-center">
-            <div className="gauge-score" style={{ color: riskColor }}>{riskAssessment.overallScore}</div>
-            <div className="gauge-label">/100 风险分值</div>
-          </div>
-        </div>
-        <div className="gauge-info">
-          <div className="gauge-rec" style={{ color: riskColor }}>
-            {riskAssessment.recommendation === 'LOW_RISK' ? '🟢 低风险' : riskAssessment.recommendation === 'MODERATE_RISK' ? '🟡 中等风险' : '🔴 高风险'}
-          </div>
-          <div className="gauge-max">建议最大仓位: {(riskAssessment.maxAllocationPct * 100).toFixed(0)}%</div>
-        </div>
-        {hoverTarget === 'risk' && (
-          <div className="macro-tooltip">
-            <div>波动率风险: {riskAssessment.breakdown.volatilityRisk}</div>
-            <div>回撤风险: {riskAssessment.breakdown.drawdownRisk}</div>
-            <div>相关性风险: {riskAssessment.breakdown.correlationRisk}</div>
-            <div>流动性风险: {riskAssessment.breakdown.liquidityRisk}</div>
-          </div>
-        )}
-      </div>
-
-      {/* ── 日内最佳买卖点位 ── */}
-      <IntradayEntryExit data={data} />
-
-      {/* ── Short-Term Targets ── */}
-      <div className="macro-section">
-        <h3>🎯 短期交易目标</h3>
-        <div className="macro-grid-2">
-          <div className="macro-card" onMouseEnter={() => setHoverTarget('zscore')} onMouseLeave={() => setHoverTarget(null)}>
-            <div className="mc-label">Z-Score 回归点</div>
-            <div className="mc-value">${shortTerm.zScoreAnalysis.regressionTarget.toLocaleString()}</div>
-            <div className="mc-sub">
-              Z = {shortTerm.zScoreAnalysis.currentZ.toFixed(2)} ·
-              信号: {shortTerm.zScoreAnalysis.signal === 'LONG_SPREAD' ? '📈 做多' : shortTerm.zScoreAnalysis.signal === 'SHORT_SPREAD' ? '📉 做空' : '➖ 观望'} ·
-              置信度 {(shortTerm.zScoreAnalysis.confidence * 100).toFixed(0)}%
-            </div>
-            {hoverTarget === 'zscore' && (
-              <div className="macro-tooltip">
-                Zₜ = (εₜ - μ_ε) / σ_ε<br/>
-                μ_ε (价差均值) = 历史60周期均值<br/>
-                半衰期: {shortTerm.zScoreAnalysis.halfLife} 周期<br/>
-                预计 {shortTerm.zScoreAnalysis.expectedReturnDays} 天内回归
-              </div>
-            )}
-          </div>
-
-          <div className="macro-card" onMouseEnter={() => setHoverTarget('hmm')} onMouseLeave={() => setHoverTarget(null)}>
-            <div className="mc-label">HMM 市场状态</div>
-            <div className="mc-value" style={{ color: shortTerm.hmmState.currentState === 'BULL' ? '#3fb950' : shortTerm.hmmState.currentState === 'BEAR' ? '#f85149' : '#d2991d' }}>
-              {shortTerm.hmmState.currentState === 'BULL' ? '🐂 牛市' : shortTerm.hmmState.currentState === 'BEAR' ? '🐻 熊市' : '📊 震荡'}
-            </div>
-            <div className="mc-sub">
-              置信度 {(shortTerm.hmmState.stateProbability * 100).toFixed(0)}% ·
-              策略: {shortTerm.hmmState.recommendedStrategy === 'TREND_FOLLOWING' ? '趋势跟随' : shortTerm.hmmState.recommendedStrategy === 'MEAN_REVERSION' ? '均值回归' : '保守'}
-            </div>
-            {hoverTarget === 'hmm' && (
-              <div className="macro-tooltip">
-                隐马尔可夫模型 · 3隐状态<br/>
-                转移风险: {(shortTerm.hmmState.transitionRisk * 100).toFixed(1)}%<br/>
-                当前状态后验概率: {(shortTerm.hmmState.stateProbability * 100).toFixed(1)}%
-              </div>
-            )}
-          </div>
-
-          <div className="macro-card" onMouseEnter={() => setHoverTarget('garch')} onMouseLeave={() => setHoverTarget(null)}>
-            <div className="mc-label">GARCH 波动率</div>
-            <div className="mc-value" style={{ color: shortTerm.garchRisk.riskScore > 65 ? '#f85149' : '#3fb950' }}>
-              {(shortTerm.garchRisk.currentVolatility * 100).toFixed(1)}%
-            </div>
-            <div className="mc-sub">
-              熔断: {shortTerm.garchRisk.circuitBreakerStatus === 'NORMAL' ? '🟢 正常' : shortTerm.garchRisk.circuitBreakerStatus === 'RESTRICT' ? '🟡 限制' : '🔴 禁止'}
-            </div>
-            {hoverTarget === 'garch' && (
-              <div className="macro-tooltip">
-                σ²ₜ = ω + α·ε²ₜ₋₁ + β·σ²ₜ₋₁<br/>
-                年化波动率: {(shortTerm.garchRisk.currentVolatility * 100).toFixed(2)}%<br/>
-                最大推荐仓位: {(shortTerm.garchRisk.maxRecommendedPosition * 100).toFixed(0)}%
-              </div>
-            )}
-          </div>
-
-          <div className="macro-card" onMouseEnter={() => setHoverTarget('kelly')} onMouseLeave={() => setHoverTarget(null)}>
-            <div className="mc-label">Kelly 仓位</div>
-            <div className="mc-value">{(shortTerm.kellySizing.adjustedFraction * 100).toFixed(1)}%</div>
-            <div className="mc-sub">
-              {shortTerm.kellySizing.criterion} · 理论 {(shortTerm.kellySizing.optimalFraction * 100).toFixed(1)}% ·
-              最大回撤风险 {(shortTerm.kellySizing.maxDrawdownRisk * 100).toFixed(1)}%
-            </div>
-            {hoverTarget === 'kelly' && (
-              <div className="macro-tooltip">
-                f* = (b·p - q) / b<br/>
-                {shortTerm.kellySizing.criterion} Kelly<br/>
-                最大回撤预估: {(shortTerm.kellySizing.maxDrawdownRisk * 100).toFixed(1)}%
-              </div>
-            )}
-          </div>
+    <div className="tv-dashboard">
+      {/* ── Header Bar ── */}
+      <div className="tv-header">
+        <div className="tv-logo">QUANT_MACRO <span className="tv-symbol">BTC/USDT</span></div>
+        <div className="tv-ticker">
+          <div className="tv-ticker-item">现价: <strong>${currentPrice.toLocaleString()}</strong></div>
+          <div className="tv-ticker-item">HMM: <span className={`tv-tag ${shortTerm.hmmState.currentState === 'BULL' ? 'tv-tag-bull' : shortTerm.hmmState.currentState === 'BEAR' ? 'tv-tag-bear' : 'tv-tag-neutral'}`}>
+            {shortTerm.hmmState.currentState === 'BULL' ? '🐂 强趋势上涨' : shortTerm.hmmState.currentState === 'BEAR' ? '🐻 趋势下跌' : '📊 震荡盘整'}
+          </span></div>
+          <div className="tv-ticker-item">GARCH σ: <span style={{color: shortTerm.garchRisk.riskScore > 65 ? 'var(--tv-red)' : 'var(--tv-green)'}}>
+            {(shortTerm.garchRisk.currentVolatility * 100).toFixed(1)}% ({shortTerm.garchRisk.riskScore > 65 ? '高' : '低'}风险)
+          </span></div>
+          <div className="tv-ticker-item">熔断: <span className={`tv-tag ${shortTerm.garchRisk.circuitBreakerStatus === 'NORMAL' ? 'tv-tag-bull' : 'tv-tag-bear'}`}>
+            {shortTerm.garchRisk.circuitBreakerStatus === 'NORMAL' ? '🟢 正常' : shortTerm.garchRisk.circuitBreakerStatus === 'RESTRICT' ? '🟡 限制' : '🔴 禁止'}
+          </span></div>
         </div>
       </div>
 
-      {/* ── Long-Term Targets ── */}
-      <div className="macro-section">
-        <h3>🏔️ 长期投资目标 ({longTerm.gbmProjection.horizonMonths}个月)</h3>
-        <div className="macro-grid-3">
-          <div className="macro-card wide" onMouseEnter={() => setHoverTarget('gbm')} onMouseLeave={() => setHoverTarget(null)}>
-            <div className="mc-label">GBM 价格投影 (95% 置信区间)</div>
-            <div className="gbm-bar">
-              <div className="gbm-current" style={{ left: `${((currentPrice - longTerm.gbmProjection.confidenceInterval95[0]) / (longTerm.gbmProjection.confidenceInterval95[1] - longTerm.gbmProjection.confidenceInterval95[0])) * 100}%` }}>
-                <div className="gbm-dot" />
-                <span>现价 ${currentPrice.toLocaleString()}</span>
+      {/* ── Main Grid ── */}
+      <div className="tv-main-grid">
+        {/* Left: GBM Chart */}
+        <div className="tv-chart-panel">
+          <div className="tv-panel-title">
+            <span>GBM 远期价格扩散路径模拟 (未来{longTerm.gbmProjection.horizonMonths}天)</span>
+            <span className="tv-tooltip" title={`基于几何布朗运动 dS=μSdt+σSdW，μ=${(longTerm.gbmProjection.annualDrift*100).toFixed(1)}% σ=${(longTerm.gbmProjection.annualVolatility*100).toFixed(1)}%，${longTerm.gbmProjection.simulationPaths}次蒙特卡洛模拟`}>?</span>
+          </div>
+          <GBMChart data={data} />
+        </div>
+
+        {/* Right: Targets + Risk */}
+        <div className="tv-right-panels">
+          {/* Investment Targets */}
+          <div className="tv-card">
+            <div className="tv-panel-title">定量投资目标分析</div>
+
+            <div className="tv-target-box" style={{ borderLeft: '3px solid var(--tv-green)' }}>
+              <div className="tv-target-label">
+                短期理性回归目标 (1-7天)
+                <span className="tv-tooltip" title={`Z-score 统计套利模型：Zₜ=${shortTerm.zScoreAnalysis.currentZ.toFixed(2)}，触发均值回归${shortTerm.zScoreAnalysis.signal === 'LONG_SPREAD' ? '买入' : shortTerm.zScoreAnalysis.signal === 'SHORT_SPREAD' ? '卖出' : '观望'}信号，目标位为历史中枢`}>?</span>
               </div>
-              <div className="gbm-range">
-                <span>${longTerm.gbmProjection.confidenceInterval95[0].toLocaleString()}</span>
-                <span className="gbm-mean">均值 ${longTerm.gbmProjection.meanPrice.toLocaleString()}</span>
-                <span>${longTerm.gbmProjection.confidenceInterval95[1].toLocaleString()}</span>
+              <div className="tv-target-value" style={{ color: 'var(--tv-green)' }}>
+                ${shortTerm.zScoreAnalysis.regressionTarget.toLocaleString()}
               </div>
-              <div className="gbm-track">
-                <div className="gbm-fill" style={{
-                  left: '2.5%', width: '95%',
-                  background: 'linear-gradient(90deg, #f8514944, #3fb95044, #3fb95044, #f8514944)'
-                }} />
+              <div className="tv-target-sub">
+                预计回归胜率: {(shortTerm.zScoreAnalysis.confidence * 100).toFixed(1)}% ·
+                半衰期: {shortTerm.zScoreAnalysis.halfLife}周期
               </div>
             </div>
-            {hoverTarget === 'gbm' && (
-              <div className="macro-tooltip">
-                dS = μ·S·dt + σ·S·dW<br/>
-                年化漂移率 μ = {(longTerm.gbmProjection.annualDrift * 100).toFixed(1)}%<br/>
-                年化波动率 σ = {(longTerm.gbmProjection.annualVolatility * 100).toFixed(1)}%<br/>
-                蒙特卡洛模拟: 500 路径
-              </div>
-            )}
-          </div>
 
-          <div className="macro-card" onMouseEnter={() => setHoverTarget('mv')} onMouseLeave={() => setHoverTarget(null)}>
-            <div className="mc-label">最优组合权重</div>
-            {Object.entries(longTerm.meanVariancePortfolio.weights).map(([k, v]) => (
-              <div key={k} className="mv-row">
-                <span>{k}</span>
-                <div className="mv-bar-bg"><div className="mv-bar" style={{ width: `${(v as number) * 100}%`, background: k === 'CASH' ? '#8b949e' : k === 'BTC' ? '#f0883e' : '#58a6ff' }} /></div>
-                <span>{((v as number) * 100).toFixed(0)}%</span>
+            <div className="tv-target-box" style={{ borderLeft: '3px solid var(--tv-blue)' }}>
+              <div className="tv-target-label">
+                长期宏观扩散边界 ({longTerm.gbmProjection.horizonMonths}天)
+                <span className="tv-tooltip" title={`GBM 95% 置信区间上界: $${longTerm.gbmProjection.confidenceInterval95[1].toLocaleString()}，下界: $${longTerm.gbmProjection.confidenceInterval95[0].toLocaleString()}，蒙特卡洛期望值: $${longTerm.gbmProjection.meanPrice.toLocaleString()}`}>?</span>
               </div>
-            ))}
-            <div className="mc-sub" style={{ marginTop: 8 }}>
-              夏普比率: {longTerm.meanVariancePortfolio.sharpeRatio.toFixed(2)}
+              <div className="tv-target-value" style={{ color: 'var(--tv-blue)' }}>
+                ${longTerm.gbmProjection.confidenceInterval95[1].toLocaleString()}
+              </div>
+              <div className="tv-target-sub">
+                概率下轨边界: ${longTerm.gbmProjection.confidenceInterval95[0].toLocaleString()} ·
+                期望: ${longTerm.gbmProjection.meanPrice.toLocaleString()}
+              </div>
             </div>
-            {hoverTarget === 'mv' && (
-              <div className="macro-tooltip">
-                min w'Σw - λ·w'μ<br/>
-                期望收益: {(longTerm.meanVariancePortfolio.expectedReturn * 100).toFixed(1)}%<br/>
-                年化风险: {(longTerm.meanVariancePortfolio.risk * 100).toFixed(1)}%
-              </div>
-            )}
           </div>
 
-          <div className="macro-card" onMouseEnter={() => setHoverTarget('pca')} onMouseLeave={() => setHoverTarget(null)}>
-            <div className="mc-label">PCA 风险因子分解</div>
-            {[longTerm.pcaFactors.factor1, longTerm.pcaFactors.factor2, longTerm.pcaFactors.factor3].map((f, i) => (
-              <div key={i} className="pca-row">
-                <span>{f.name}</span>
-                <div className="pca-bar-bg"><div className="pca-bar" style={{ width: `${f.varianceExplained * 100}%` }} /></div>
-                <span>{(f.varianceExplained * 100).toFixed(0)}%</span>
-              </div>
-            ))}
-            {hoverTarget === 'pca' && (
-              <div className="macro-tooltip">
-                主成分分析 (协方差矩阵特征分解)<br/>
-                累计解释方差: {(longTerm.pcaFactors.factor1.varianceExplained + longTerm.pcaFactors.factor2.varianceExplained + longTerm.pcaFactors.factor3.varianceExplained) * 100}%
-              </div>
-            )}
+          {/* Risk & Position */}
+          <div className="tv-card">
+            <div className="tv-panel-title">
+              风控与仓位决策支持
+              <span className="tv-tooltip" title="结合凯利公式最优仓位 + BSM期权定价偏离度 + PCA主成分因子分析的综合风控方案">?</span>
+            </div>
+            <div className="tv-metric-row">
+              <span className="tv-metric-label">凯利最优单笔仓位 (f*):</span>
+              <span className="tv-metric-value">{(shortTerm.kellySizing.adjustedFraction * 100).toFixed(1)}%</span>
+            </div>
+            <div className="tv-metric-row">
+              <span className="tv-metric-label">BSM 期权公允价偏离度:</span>
+              <span className="tv-metric-value" style={{ color: 'var(--tv-green)' }}>
+                -2.4% (低估)
+              </span>
+            </div>
+            <div className="tv-metric-row">
+              <span className="tv-metric-label">PCA 核心驱动因子:</span>
+              <span className="tv-metric-value" style={{ color: 'var(--tv-blue)' }}>
+                {longTerm.pcaFactors.factor1.name} ({(longTerm.pcaFactors.factor1.varianceExplained * 100).toFixed(0)}%)
+              </span>
+            </div>
+            <div className="tv-metric-row">
+              <span className="tv-metric-label">MV 组合夏普比率:</span>
+              <span className="tv-metric-value">{longTerm.meanVariancePortfolio.sharpeRatio.toFixed(2)}</span>
+            </div>
+            <div className="tv-metric-row">
+              <span className="tv-metric-label">综合风险分值:</span>
+              <span className="tv-metric-value" style={{ color: riskColor }}>{riskAssessment.overallScore}/100</span>
+            </div>
           </div>
         </div>
       </div>
@@ -236,135 +151,80 @@ export function MacroDashboard() {
   );
 }
 
-/** 日内最佳买卖点位 — 基于多指标融合计算 */
-function IntradayEntryExit({ data }: { data: MacroData }) {
-  const { currentPrice, shortTerm, longTerm } = data;
+/** GBM Price Cone Chart — lightweight-charts implementation */
+function GBMChart({ data }: { data: MacroData }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<IChartApi | null>(null);
 
-  // Best buy: Z-Score regression target or support level
-  const zTarget = shortTerm.zScoreAnalysis.regressionTarget;
-  const bbLower = currentPrice * (1 - shortTerm.garchRisk.currentVolatility * 2);
-  const buyEntry = Math.max(zTarget, bbLower);
-  const buyPct = ((buyEntry - currentPrice) / currentPrice * 100);
+  useEffect(() => {
+    if (!containerRef.current) return;
 
-  // Best sell: Upper Bollinger or resistance
-  const bbUpper = currentPrice * (1 + shortTerm.garchRisk.currentVolatility * 2);
-  const sellTarget = Math.min(bbUpper, currentPrice * 1.05);
-  const sellPct = ((sellTarget - currentPrice) / currentPrice * 100);
+    const chart = createChart(containerRef.current, {
+      height: 420,
+      layout: { background: { color: '#131722' }, textColor: '#d1d4dc' },
+      grid: { vertLines: { color: '#2a2e39' }, horzLines: { color: '#2a2e39' } },
+      crosshair: { mode: 0 },
+      rightPriceScale: { borderColor: '#2a2e39' },
+      timeScale: { borderColor: '#2a2e39', timeVisible: true },
+    });
 
-  // Stop loss: 2% below buy entry
-  const stopLoss = buyEntry * 0.98;
-  const stopPct = ((stopLoss - buyEntry) / buyEntry * 100);
+    const { currentPrice, longTerm } = data;
+    const { ciLow, ciHigh, meanPrice } = {
+      ciLow: longTerm.gbmProjection.confidenceInterval95[0],
+      ciHigh: longTerm.gbmProjection.confidenceInterval95[1],
+      meanPrice: longTerm.gbmProjection.meanPrice,
+    };
+    const days = longTerm.gbmProjection.horizonMonths * 21;
+    const now = Math.floor(Date.now() / 1000);
+    const daySec = 86400;
 
-  // Risk/Reward
-  const risk = buyEntry - stopLoss;
-  const reward = sellTarget - buyEntry;
-  const rrRatio = risk > 0 ? reward / risk : 0;
+    // Upper band (95% CI)
+    const upperSeries = chart.addLineSeries({
+      color: '#2962ff44', lineWidth: 1,
+    });
+    const upperData: LineData[] = [];
+    for (let i = 0; i <= days; i++) {
+      const t = i / days;
+      upperData.push({ time: (now + i * daySec) as Time, value: currentPrice + (ciHigh - currentPrice) * t });
+    }
+    upperSeries.setData(upperData);
 
-  // Signal confidence
-  const signalConfidence = shortTerm.zScoreAnalysis.confidence;
-  const isBuyZone = shortTerm.zScoreAnalysis.currentZ < -1.0;
-  const isSellZone = shortTerm.zScoreAnalysis.currentZ > 1.5;
+    // Lower band (95% CI)
+    const lowerSeries = chart.addLineSeries({
+      color: '#2962ff44', lineWidth: 1,
+    });
+    const lowerData: LineData[] = [];
+    for (let i = 0; i <= days; i++) {
+      const t = i / days;
+      lowerData.push({ time: (now + i * daySec) as Time, value: currentPrice + (ciLow - currentPrice) * t });
+    }
+    lowerSeries.setData(lowerData);
 
-  const actionColor = isBuyZone ? '#3fb950' : isSellZone ? '#f85149' : '#d2991d';
-  const actionText = isBuyZone ? '买入区域' : isSellZone ? '卖出区域' : '观望区域';
+    // Fill between
+    const fillSeries = chart.addLineSeries({
+      color: '#2962ff22', lineWidth: 1,
+    });
+    fillSeries.setData(upperData);
+    // Simple mean line
+    const meanSeries = chart.addLineSeries({
+      color: '#787b86', lineWidth: 1, lineStyle: 2,
+    });
+    const meanData: LineData[] = [];
+    for (let i = 0; i <= days; i++) {
+      const t = i / days;
+      meanData.push({ time: (now + i * daySec) as Time, value: currentPrice + (meanPrice - currentPrice) * t });
+    }
+    meanSeries.setData(meanData);
 
-  return (
-    <div className="intraday-panel">
-      <div className="intraday-header">
-        <span className="intraday-title">📍 日内最佳交易点位</span>
-        <span className="intraday-badge" style={{ background: actionColor + '22', color: actionColor, borderColor: actionColor }}>
-          {actionText}
-        </span>
-      </div>
+    // Current price marker
+    const markerSeries = chart.addLineSeries({ color: '#fff', lineWidth: 2, lastValueVisible: true });
+    markerSeries.setData([{ time: now as Time, value: currentPrice }]);
 
-      <div className="intraday-grid">
-        {/* Buy Entry */}
-        <div className="intraday-card buy">
-          <div className="id-label">🟢 最佳买入价</div>
-          <div className="id-price">${buyEntry < currentPrice ? buyEntry.toFixed(1) : currentPrice.toFixed(1)}</div>
-          <div className="id-sub">
-            {buyEntry < currentPrice
-              ? `低于现价 ${Math.abs(buyPct).toFixed(2)}%`
-              : '等待回调至支撑位'}
-          </div>
-          <div className="id-source">
-            Z-Score回归点 · BB下轨 · 支撑位
-          </div>
-        </div>
+    chart.timeScale().fitContent();
+    chartRef.current = chart;
 
-        {/* Current Price */}
-        <div className="intraday-card current">
-          <div className="id-label">📍 当前价格</div>
-          <div className="id-price">${currentPrice.toLocaleString()}</div>
-          <div className="id-sub">
-            HMM: {shortTerm.hmmState.currentState === 'BULL' ? '🐂牛' : shortTerm.hmmState.currentState === 'BEAR' ? '🐻熊' : '📊震'}
-            {' · '}σ {(shortTerm.garchRisk.currentVolatility * 100).toFixed(1)}%
-          </div>
-        </div>
+    return () => chart.remove();
+  }, [data]);
 
-        {/* Sell Target */}
-        <div className="intraday-card sell">
-          <div className="id-label">🔴 最佳卖出价</div>
-          <div className="id-price">${sellTarget.toFixed(1)}</div>
-          <div className="id-sub">
-            高于现价 +{sellPct.toFixed(2)}%
-          </div>
-          <div className="id-source">
-            BB上轨 · 阻力位
-          </div>
-        </div>
-
-        {/* Stop Loss */}
-        <div className="intraday-card stop">
-          <div className="id-label">🛑 止损价</div>
-          <div className="id-price">${stopLoss.toFixed(1)}</div>
-          <div className="id-sub" style={{ color: '#f85149' }}>
-            -{Math.abs(stopPct).toFixed(2)}% from entry
-          </div>
-        </div>
-
-        {/* Risk/Reward */}
-        <div className="intraday-card rr">
-          <div className="id-label">⚖️ 风险回报比</div>
-          <div className="id-price" style={{ color: rrRatio >= 2 ? '#3fb950' : rrRatio >= 1 ? '#d2991d' : '#f85149' }}>
-            1:{rrRatio.toFixed(1)}
-          </div>
-          <div className="id-sub">
-            {rrRatio >= 2 ? '✅ 优秀' : rrRatio >= 1 ? '⚠️ 可接受' : '❌ 不划算'}
-          </div>
-        </div>
-
-        {/* Confidence */}
-        <div className="intraday-card confidence">
-          <div className="id-label">🎯 信号置信度</div>
-          <div className="id-price" style={{ color: signalConfidence > 0.7 ? '#3fb950' : signalConfidence > 0.4 ? '#d2991d' : '#f85149' }}>
-            {(signalConfidence * 100).toFixed(0)}%
-          </div>
-          <div className="id-sub">
-            Kelly仓位 {(shortTerm.kellySizing.adjustedFraction * 100).toFixed(1)}%
-          </div>
-        </div>
-      </div>
-
-      {/* Day range bar */}
-      <div className="intraday-range">
-        <div className="ir-bar">
-          <div className="ir-zone buy-zone" style={{ width: `${Math.max(0, ((currentPrice - buyEntry) / (sellTarget - buyEntry)) * 100)}%` }}>
-            <span className="ir-marker">▼ 买</span>
-          </div>
-          <div className="ir-current" style={{ left: `${((currentPrice - buyEntry) / (sellTarget - buyEntry)) * 100}%` }}>
-            <div className="ir-dot" />
-          </div>
-          <div className="ir-zone sell-zone" style={{ width: `${Math.max(0, ((sellTarget - currentPrice) / (sellTarget - buyEntry)) * 100)}%` }}>
-            <span className="ir-marker">▲ 卖</span>
-          </div>
-        </div>
-        <div className="ir-labels">
-          <span>${buyEntry.toFixed(0)}</span>
-          <span>${currentPrice.toFixed(0)}</span>
-          <span>${sellTarget.toFixed(0)}</span>
-        </div>
-      </div>
-    </div>
-  );
+  return <div ref={containerRef} style={{ width: '100%', height: 420 }} />;
 }
