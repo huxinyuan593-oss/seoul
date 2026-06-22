@@ -421,6 +421,36 @@ body { background: var(--bg); color: var(--text);
 .prediction-chart-panel { background: var(--tv-card); border: 1px solid var(--tv-border);
   border-radius: 4px; padding: 12px 14px 6px; margin-bottom: 12px; }
 
+/* ══════════════════════════════════════════
+   Sentiment Strip — 实时多空信号条
+   ══════════════════════════════════════════ */
+.sentiment-strip { display: flex; align-items: center; gap: 16px;
+  background: var(--tv-card); border: 1px solid var(--tv-border);
+  border-left: 3px solid; border-radius: 4px; padding: 10px 16px;
+  margin-bottom: 12px; }
+.sentiment-strip.loading { color: var(--tv-muted); font-size: 12px; justify-content: center;
+  border-left-color: var(--tv-border); }
+
+.ss-left, .ss-center, .ss-right { display: flex; align-items: center; gap: 10px; }
+.ss-left { flex-shrink: 0; }
+.ss-price { font-size: 18px; font-weight: 700; color: #fff; font-variant-numeric: tabular-nums; }
+.ss-change { font-size: 13px; font-weight: 600; }
+.ss-change.up { color: var(--tv-green); } .ss-change.down { color: var(--tv-red); }
+.ss-range { font-size: 10px; color: var(--tv-muted); }
+
+.ss-center { flex: 1; justify-content: center; gap: 14px; }
+.ss-bias { font-size: 16px; font-weight: 700; min-width: 60px; text-align: center; }
+.ss-factors { display: flex; gap: 8px; flex-wrap: wrap; }
+.ss-factor { font-size: 10px; padding: 2px 8px; border-radius: 3px; white-space: nowrap; }
+.ss-factor.bullish { background: rgba(8,153,129,0.12); color: var(--tv-green); }
+.ss-factor.bearish { background: rgba(242,54,69,0.12); color: var(--tv-red); }
+
+.ss-right { flex-shrink: 0; flex-direction: column; align-items: stretch; min-width: 100px; }
+.ss-score-bar { height: 8px; border-radius: 4px; overflow: hidden; display: flex; background: var(--tv-border); }
+.ss-bull-fill { height: 100%; background: var(--tv-green); transition: width 0.5s; }
+.ss-bear-fill { height: 100%; background: var(--tv-red); transition: width 0.5s; }
+.ss-score-labels { display: flex; justify-content: space-between; font-size: 9px; margin-top: 3px; }
+
 /* ── Responsive ──────────────────────────── */
 @media (max-width: 1400px) {
   .main-grid { grid-template-columns: 1fr 250px; }
