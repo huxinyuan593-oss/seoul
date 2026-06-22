@@ -1,7 +1,6 @@
-import { useState, useCallback } from 'react';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useOHLCVData } from './hooks/useOHLCVData';
-import { TradingViewChart, CrosshairData } from './components/TradingViewChart';
+import { TradingViewWidget } from './components/TradingViewWidget';
 import { AnalysisPanel } from './components/AnalysisPanel';
 import { BuyZoneAnalysis } from './components/BuyZoneAnalysis';
 import { NewsPanel } from './components/NewsPanel';
@@ -17,13 +16,10 @@ import './styles.css';
 export default function App() {
   const { connected, lastTick, lastBar, subscribe } = useWebSocket();
   const bars = useOHLCVData(lastBar);
-  const [crosshair, setCrosshair] = useState<CrosshairData | null>(null);
 
   if (connected) subscribe('BTC/USDT');
 
   const midPrice = lastTick?.price ?? bars[bars.length - 1]?.close ?? 87000;
-
-  const handleCrosshair = useCallback((data: CrosshairData) => setCrosshair(data), []);
 
   const handleSubmitOrder = (signal: TradeSignal) => {
     fetch('http://localhost:8001/api/quant/signals', {
@@ -49,19 +45,12 @@ export default function App() {
 
       <div className="main-grid">
         <div className="chart-area">
-          <TradingViewChart bars={bars} height={520} onCrosshairMove={handleCrosshair} />
-          <div className="drawing-toolbar">
-            <button title="趋势线 (点击图表两点)" onClick={() => alert('🎯 点击图表上任意两点即可绘制趋势线 (使用 crosshair 模式)')}>📐 趋势线</button>
-            <button title="水平线" onClick={() => alert('📏 在图表任意价格位置点击右键 → 添加水平线')}>📏 水平线</button>
-            <button title="矩形框" onClick={() => alert('⬜ 拖动选择图表区域绘制矩形')}>⬜ 矩形</button>
-            <button title="斐波那契" onClick={() => alert('📐 选择高点和低点绘制斐波那契回撤')}>🌀 斐波那契</button>
-            <span className="toolbar-hint">| 单击图表查看精确数值</span>
-          </div>
+          <TradingViewWidget />
         </div>
 
         {/* Right Side — Analysis Panel */}
         <div className="right-panels">
-          <AnalysisPanel bars={bars} crosshair={crosshair} lastTick={lastTick} />
+          <AnalysisPanel bars={bars} crosshair={null} lastTick={lastTick} />
         </div>
       </div>
 
