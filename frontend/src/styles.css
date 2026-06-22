@@ -401,6 +401,20 @@ body { background: var(--bg); color: var(--text);
 .td-key-event { padding: 3px 0; font-size: 11px; color: var(--tv-text); }
 .td-key-event::before { content: '⚡ '; }
 
+/* ══════════════════════════════════════════
+   Price Chart — 7-Day BTC Trend
+   ══════════════════════════════════════════ */
+.price-chart-panel { background: var(--tv-card); border: 1px solid var(--tv-border);
+  border-radius: 4px; padding: 12px 14px 6px; margin-bottom: 12px; }
+.pc-header { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+.pc-title { font-size: 12px; font-weight: 600; color: var(--tv-muted); text-transform: uppercase; }
+.pc-loading { font-size: 11px; color: var(--tv-muted); }
+.pc-error { font-size: 10px; color: var(--tv-orange); }
+.pc-change { font-size: 12px; font-weight: 700; }
+.pc-change.up { color: var(--tv-green); }
+.pc-change.down { color: var(--tv-red); }
+.pc-chart { width: 100%; }
+
 /* ── Responsive ──────────────────────────── */
 @media (max-width: 1400px) {
   .main-grid { grid-template-columns: 1fr 250px; }
