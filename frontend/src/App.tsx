@@ -38,7 +38,7 @@ export default function App() {
 
   return (
     <div className="app">
-      <MarketBar tick={lastTick} connected={connected} />
+      <MarketBar connected={connected} />
 
       <MarketTicker />
       <div className="macro-row">
