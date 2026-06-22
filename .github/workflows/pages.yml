@@ -1,4 +1,4 @@
-name: Deploy to GitHub Pages
+name: Deploy BTC Trading Platform to GitHub Pages
 on:
   push:
     branches: [main]
@@ -8,16 +8,29 @@ permissions:
   pages: write
   id-token: write
 jobs:
-  deploy:
+  build-and-deploy:
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install & Build Frontend
+        run: |
+          cd frontend
+          npm install
+          npx vite build --base=/seoul/
+
       - uses: actions/configure-pages@v4
+
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: '.'
+          path: frontend/dist
+
       - id: deployment
         uses: actions/deploy-pages@v4
