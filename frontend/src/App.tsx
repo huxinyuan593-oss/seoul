@@ -7,6 +7,7 @@ import { NewsPanel } from './components/NewsPanel';
 import { MacroDashboard } from './components/MacroDashboard';
 import { MarketTicker } from './components/MarketTicker';
 import { PriceChart } from './components/PriceChart';
+import BtcPredictionChart from './components/BtcPredictionChart';
 import { OrderPanel } from './components/OrderPanel';
 import { MarketBar } from './components/MarketBar';
 import { BacktestPanel } from './components/BacktestPanel';
@@ -39,6 +40,7 @@ export default function App() {
 
       <MarketTicker />
       <PriceChart />
+      <BtcPredictionChart />
       <div className="macro-row">
         <MacroDashboard />
       </div>
